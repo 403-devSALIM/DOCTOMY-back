@@ -122,21 +122,38 @@ router.post(
         return res.status(400).json({ message: "Both personImage and identityCard are required" });
       }
 
-      console.log("Performing face comparison via Luxand API...");
+      console.log("Performing improved face comparison via Cloudinary + Luxand...");
 
-      // Prepare form data for Luxand API
+      // Helper function to upload to a temporary comparison folder
+      const uploadToTemp = (file) => {
+        return new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            { folder: "temp_comparison", resource_type: "image" },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result.secure_url);
+            }
+          );
+          uploadStream.end(file.buffer);
+        });
+      };
+
+      // 1. Upload both to Cloudinary to get clean, optimized URLs
+      const [url1, url2] = await Promise.all([
+        uploadToTemp(personImageFile),
+        uploadToTemp(identityCardFile)
+      ]);
+
+      // 2. Prepare form data for Luxand API using URLs
       const form = new FormData();
-      form.append("face1", personImageFile.buffer, { filename: "person.jpg" });
-      form.append("face2", identityCardFile.buffer, { filename: "card.jpg" });
+      form.append("face1", url1);
+      form.append("face2", url2);
 
-      // Use your Luxand API Key (Get one for free at luxand.cloud)
+      // Use your Luxand API Key
       const LUXAND_API_KEY = process.env.LUXAND_API_KEY || "YOUR_LUXAND_API_KEY";
 
       if (!LUXAND_API_KEY || LUXAND_API_KEY === "YOUR_LUXAND_API_KEY") {
-         return res.status(500).json({ 
-           message: "Identity verification API not configured.",
-           note: "Please add LUXAND_API_KEY to your .env file in Render." 
-         });
+         return res.status(500).json({ message: "Identity verification API not configured." });
       }
 
       const response = await axios.post("https://api.luxand.cloud/photo/similarity", form, {
@@ -146,18 +163,22 @@ router.post(
         }
       });
 
-      // Luxand /photo/similarity returns a "similarity" score (0 to 1)
+      // Luxand returns a similarity score (0 to 1)
       const similarity = response.data.similarity || 0;
-      const threshold = 0.7; // Luxand recommendation for matching
+      const threshold = 0.6; // Slightly lowered threshold for better matching on IDs
       const isMatch = similarity > threshold;
       const confidence = (similarity * 100).toFixed(2);
+
+      // Extract Luxand's specific error if it failed
+      const luxandMessage = response.data.message || (isMatch ? "Faces match" : "Faces do not match");
 
       res.status(200).json({
         message: "Identity verification completed",
         match: isMatch,
         confidence: confidence + "%",
-        provider: "Luxand.cloud",
-        raw: response.data
+        status: response.data.status,
+        details: luxandMessage,
+        note: isMatch ? "Success: Identity verified." : "Warning: Faces do not appear to match or weren't detected clearly."
       });
 
     } catch (error) {
