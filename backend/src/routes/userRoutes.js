@@ -74,6 +74,34 @@ router.get("/", adminRoute, async (req, res) => {
   }
 });
 
+// Update user status (Admin only)
+router.patch("/:id/status", adminRoute, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = ["rejected", "in_progress", "not_complete", "accepted", "needs_update"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { status },
+      select: {
+        id: true,
+        email: true,
+        status: true,
+      },
+    });
+
+    res.status(200).json({ message: "User status updated successfully", user: updatedUser });
+  } catch (error) {
+    console.error("Error updating user status:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // Delete user by ID (Admin only)
 router.delete("/:id", adminRoute, async (req, res) => {
   try {
