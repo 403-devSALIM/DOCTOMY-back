@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .vscode/
 npm-debug.log*
+
+/src/generated/prisma
