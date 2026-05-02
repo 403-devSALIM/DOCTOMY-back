@@ -91,17 +91,26 @@ router.post(
       });
 
       const savedDocs = await Promise.all(
-        uploadResults.map((doc) =>
-          prisma.document.create({
+        uploadResults.map(async (doc) => {
+          // Delete any existing document of this type for this user first
+          await prisma.document.deleteMany({
+            where: {
+              userId: req.user.id,
+              type: doc.type,
+            },
+          });
+
+          // Create the new document record
+          return prisma.document.create({
             data: {
               type: doc.type,
               url: doc.url,
               publicId: doc.publicId,
-              format: doc.format, // ✅ Added format here to save in DB
+              format: doc.format,
               userId: req.user.id,
             },
-          })
-        )
+          });
+        })
       );
 
       // 3. Prepare data for webhook
