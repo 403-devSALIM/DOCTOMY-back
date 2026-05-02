@@ -45,12 +45,15 @@ router.post(
             file.originalname.toLowerCase().endsWith('.pdf') || 
             file.mimetype === 'application/pdf';
 
+          // FIXED: Use proper resource_type for PDFs
           const cloudinaryOptions = {
             folder: `user_${req.user.id}/verification`,
             type: "upload",
             access_mode: "public",
           };
 
+          // For PDFs, use resource_type 'raw' but add format explicitly
+          // OR use resource_type 'auto' to let Cloudinary detect
           if (isPdf) {
             cloudinaryOptions.resource_type = "raw";
             cloudinaryOptions.format = "pdf"; // ✅ Explicitly set PDF format
@@ -63,12 +66,7 @@ router.post(
             cloudinaryOptions,
             (error, result) => {
               if (error) reject(error);
-              else resolve({ 
-                type: key, 
-                url: result.secure_url, 
-                publicId: result.public_id,
-                format: result.format || (isPdf ? "pdf" : null)
-              });
+              else resolve({ type: key, url: result.secure_url, publicId: result.public_id });
             }
           );
           uploadStream.end(file.buffer);
