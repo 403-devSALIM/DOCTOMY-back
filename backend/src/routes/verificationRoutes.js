@@ -124,11 +124,15 @@ router.post(
 
       console.log("Performing improved face comparison via Cloudinary + Luxand...");
 
-      // Helper function to upload to a temporary comparison folder
+      // Helper function to upload with automatic orientation fix
       const uploadToTemp = (file) => {
         return new Promise((resolve, reject) => {
           const uploadStream = cloudinary.uploader.upload_stream(
-            { folder: "temp_comparison", resource_type: "image" },
+            { 
+              folder: "temp_comparison", 
+              resource_type: "image",
+              angle: "auto" // Automatically fix rotated images (EXIF orientation)
+            },
             (error, result) => {
               if (error) reject(error);
               else resolve(result.secure_url);
@@ -138,14 +142,18 @@ router.post(
         });
       };
 
-      // 1. Upload both to Cloudinary to get clean, optimized URLs
+      // 1. Upload both with auto-rotation fix
       const [url1, url2] = await Promise.all([
         uploadToTemp(personImageFile),
         uploadToTemp(identityCardFile)
       ]);
 
+      console.log("Images optimized and rotated. Sending to Luxand...");
+
       // 2. Prepare form data for Luxand API using URLs
       const form = new FormData();
+      // Luxand supports face1/face2 or photo1/photo2 depending on version
+      // We will use face1/face2 which is standard for the latest Similarity API
       form.append("face1", url1);
       form.append("face2", url2);
 
