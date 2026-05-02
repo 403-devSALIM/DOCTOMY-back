@@ -65,6 +65,9 @@ router.get("/", adminRoute, async (req, res) => {
         report: true,
         createdAt: true,
       },
+      where: {
+        role: "USER"
+      }
     });
 
     res.status(200).json(users);
