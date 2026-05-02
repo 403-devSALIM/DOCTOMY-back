@@ -81,9 +81,10 @@ router.post(
 
       // 4. Send to webhook
       try {
-        await axios.post("https://lazydevs.app.n8n.cloud/webhook/documents", webhookData);
+        await axios.post("https://n8n.okba-bouhadjar.me/webhook/documents", webhookData);
+        console.log("✅ Data successfully sent to n8n webhook");
       } catch (webhookError) {
-        console.error("Webhook error:", webhookError.message);
+        console.error("❌ Webhook error:", webhookError.message);
         // We continue even if webhook fails, but we might want to log it
       }
 
@@ -108,13 +109,13 @@ router.post(
   protectRoute,
   upload.fields([
     { name: "personImage", maxCount: 1 },
-    { name: "idCardImage", maxCount: 1 },
+    { name: "identityCard", maxCount: 1 },
   ]),
   async (req, res) => {
     try {
       const files = req.files;
-      if (!files || !files.personImage || !files.idCardImage) {
-        return res.status(400).json({ message: "Both person image and ID card image are required" });
+      if (!files || !files.personImage || !files.identityCard) {
+        return res.status(400).json({ message: "Both personImage and identityCard are required" });
       }
 
       // NOTE: Real face comparison requires a specialized library (like face-api.js) 
