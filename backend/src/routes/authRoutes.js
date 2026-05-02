@@ -101,6 +101,7 @@ router.post("/register", async (req, res) => {
         lastName: user.lastName,
         profileImage: user.profileImage,
         role: user.role,
+        status: user.status,
       },
     });
   } catch (error) {
@@ -147,6 +148,7 @@ router.post("/login", async (req, res) => {
         email: user.email,
         profileImage: user.profileImage,
         role: user.role,
+        status: user.status,
       },
     });
   } catch (error) {
