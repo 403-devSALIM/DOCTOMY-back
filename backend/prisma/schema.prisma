@@ -25,8 +25,12 @@ model User {
   username     String?    @unique
   profileImage String     @default("")
   role         String     @default("USER")
-  status       String     @default("not_complete") // Values: rejected, in_progress, not_complete, accepted, needs_update
-  documents    Document[]
+  status             String     @default("not_complete") // Values: rejected, in_progress, not_complete, accepted, needs_update
+  isValid            Boolean    @default(false)
+  isNifValid         Boolean    @default(false)
+  validityPercentage Int        @default(0)
+  report             String?    @db.Text
+  documents          Document[]
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

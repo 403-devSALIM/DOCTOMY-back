@@ -57,7 +57,12 @@ router.post(
 
       const uploadResults = await Promise.all(uploadPromises);
 
-      // 2. Save to database
+      // 2. Save documents and update user status to in_progress
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { status: "in_progress" },
+      });
+
       const savedDocs = await Promise.all(
         uploadResults.map((doc) =>
           prisma.document.create({
@@ -198,5 +203,38 @@ router.post(
     }
   }
 );
+
+/**
+ * @route   POST /api/verify/webhook-callback
+ * @desc    Callback endpoint for n8n to update verification results
+ * @access  Public (Should use a secret in production)
+ */
+router.post("/webhook-callback", async (req, res) => {
+  try {
+    const { userId, is_valid, is_nif_valid, validity_percentage, report, status } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: "userId is required" });
+    }
+
+    // Update user with verification data from n8n
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        isValid: is_valid !== undefined ? is_valid : false,
+        isNifValid: is_nif_valid !== undefined ? is_nif_valid : false,
+        validityPercentage: validity_percentage !== undefined ? parseInt(validity_percentage) : 0,
+        report: report || "",
+        status: status || (is_valid ? "accepted" : "rejected"), // Auto-update status based on validity if status not provided
+      },
+    });
+
+    console.log(`✅ User ${userId} verification updated from n8n`);
+    res.status(200).json({ message: "User verification updated successfully", userId: updatedUser.id });
+  } catch (error) {
+    console.error("Webhook callback error:", error);
+    res.status(500).json({ message: "Failed to update verification data" });
+  }
+});
 
 export default router;
