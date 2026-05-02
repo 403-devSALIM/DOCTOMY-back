@@ -16,25 +16,28 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post(
   "/submit",
   protectRoute,
-  upload.fields([
-    { name: "personImage", maxCount: 1 },
-    { name: "identityCard", maxCount: 1 },
-    { name: "nif", maxCount: 1 },
-    { name: "workAuth", maxCount: 1 },
-    { name: "birthCert", maxCount: 1 },
-  ]),
+  upload.any(),
   async (req, res) => {
     try {
       const { fullName, identifiers } = req.body;
-      const files = req.files;
+      const files = req.files || [];
 
-      if (!files || Object.keys(files).length < 5) {
-        return res.status(400).json({ message: "All 5 documents are required" });
+      // Required fields list
+      const requiredFields = ["personImage", "identityCard", "nif", "workAuth", "birthCert"];
+      
+      // Filter the files we actually need
+      const filteredFiles = files.filter(file => requiredFields.includes(file.fieldname));
+
+      if (filteredFiles.length < 5) {
+        return res.status(400).json({ 
+          message: "All 5 documents are required", 
+          missing: requiredFields.filter(field => !files.some(f => f.fieldname === field))
+        });
       }
 
       // 1. Upload all files to Cloudinary
-      const uploadPromises = Object.keys(files).map((key) => {
-        const file = files[key][0];
+      const uploadPromises = filteredFiles.map((file) => {
+        const key = file.fieldname;
         return new Promise((resolve, reject) => {
           const uploadStream = cloudinary.uploader.upload_stream(
             {
@@ -107,14 +110,14 @@ router.post(
 router.post(
   "/compare",
   protectRoute,
-  upload.fields([
-    { name: "personImage", maxCount: 1 },
-    { name: "identityCard", maxCount: 1 },
-  ]),
+  upload.any(),
   async (req, res) => {
     try {
-      const files = req.files;
-      if (!files || !files.personImage || !files.identityCard) {
+      const files = req.files || [];
+      const personImage = files.find(f => f.fieldname === "personImage");
+      const identityCard = files.find(f => f.fieldname === "identityCard");
+
+      if (!personImage || !identityCard) {
         return res.status(400).json({ message: "Both personImage and identityCard are required" });
       }
 
