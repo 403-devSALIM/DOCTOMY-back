@@ -45,7 +45,9 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
           resource_type: "auto",
           type: "upload",
           access_mode: "public",
-          format: format // ✅ Force Cloudinary to save with this exact extension
+          format: format, // ✅ Force Cloudinary to save with this exact extension
+          use_filename: true,
+          unique_filename: true
         };
 
         if (!isPdf) {
@@ -59,7 +61,7 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
             else resolve({
               url: result.secure_url,
               publicId: result.public_id,
-              format: result.format || (isPdf ? "pdf" : null),
+              format: result.format || format,
               originalName: file.originalname
             });
           }
@@ -76,7 +78,7 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
           data: {
             url: doc.url,
             publicId: doc.publicId,
-            format: doc.format,
+            format: doc.format, // ✅ Added format here to save in DB
             originalName: doc.originalName,
             userId: req.user.id,
           },

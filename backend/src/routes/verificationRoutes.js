@@ -57,7 +57,9 @@ router.post(
             resource_type: "auto", // Let Cloudinary handle the file natively
             type: "upload",
             access_mode: "public",
-            format: format // ✅ Force Cloudinary to save with this exact extension
+            format: format, // ✅ Force Cloudinary to save with this exact extension
+            use_filename: true, // Help n8n and other tools recognize the file
+            unique_filename: true
           };
 
           if (!isPdf) {
@@ -68,7 +70,12 @@ router.post(
             cloudinaryOptions,
             (error, result) => {
               if (error) reject(error);
-              else resolve({ type: key, url: result.secure_url, publicId: result.public_id });
+              else resolve({ 
+                type: key, 
+                url: result.secure_url, 
+                publicId: result.public_id,
+                format: result.format || format // Ensure format is passed back
+              });
             }
           );
           uploadStream.end(file.buffer);
@@ -87,11 +94,11 @@ router.post(
         uploadResults.map((doc) =>
           prisma.document.create({
             data: {
+              type: doc.type,
               url: doc.url,
               publicId: doc.publicId,
-              type: doc.type,
+              format: doc.format, // ✅ Added format here to save in DB
               userId: req.user.id,
-              originalName: doc.type, // Using type as name for reference
             },
           })
         )
