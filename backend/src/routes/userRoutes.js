@@ -1,8 +1,43 @@
 import express from "express";
 import prisma from "../lib/prisma.js";
 import adminRoute from "../middleware/adminMiddleware.js";
+import protectRoute from "../middleware/autmiddlware.js";
 
 const router = express.Router();
+
+// Get profile of authenticated user
+router.get("/profile", protectRoute, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        accountType: true,
+        wilaya: true,
+        commune: true,
+        gender: true,
+        role: true,
+        status: true,
+        profileImage: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(user);
+  } catch (error) {
+    console.error("Error fetching profile:", error.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 // Fetch all users (Admin only)
 router.get("/", adminRoute, async (req, res) => {
