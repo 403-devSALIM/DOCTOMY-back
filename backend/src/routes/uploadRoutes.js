@@ -7,7 +7,6 @@ import prisma from "../lib/prisma.js";
 const router = express.Router();
 
 // Configure multer (memory storage)
-// This will keep files in memory before uploading to Cloudinary
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage,
@@ -21,37 +20,31 @@ const upload = multer({
  */
 router.post("/documents", protectRoute, upload.array("documents", 5), async (req, res) => {
   try {
-    // Check if Cloudinary is configured
     if (!process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME === "your_cloud_name") {
-      return res.status(500).json({ message: "Cloudinary is not configured. Please check your .env file." });
+      return res.status(500).json({ message: "Cloudinary is not configured." });
     }
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ message: "No files uploaded. Make sure you use the key 'documents' in form-data." });
+      return res.status(400).json({ message: "No files uploaded." });
     }
 
-    // Upload each file to Cloudinary
     const uploadPromises = req.files.map((file) => {
       return new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           {
-            // Organize files by user ID for security and better management
             folder: `user_${req.user.id}/documents`,
             resource_type: "auto",
-            type: "upload", // Make it public
+            type: "upload",
+            access_mode: "public",
           },
           (error, result) => {
-            if (error) {
-              console.error("Cloudinary upload error:", error);
-              reject(error);
-            } else {
-              resolve({
-                url: result.secure_url,
-                publicId: result.public_id,
-                format: result.format,
-                originalName: file.originalname
-              });
-            }
+            if (error) reject(error);
+            else resolve({
+              url: result.secure_url,
+              publicId: result.public_id,
+              format: result.format,
+              originalName: file.originalname
+            });
           }
         );
         uploadStream.end(file.buffer);
@@ -60,7 +53,6 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
 
     const uploadResults = await Promise.all(uploadPromises);
 
-    // Save each document reference to the database
     const savedDocuments = await Promise.all(
       uploadResults.map((doc) =>
         prisma.document.create({
@@ -69,39 +61,35 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
             publicId: doc.publicId,
             format: doc.format,
             originalName: doc.originalName,
-            userId: req.user.id, // Associate with the authenticated user
+            userId: req.user.id,
           },
         })
       )
     );
 
-    res.status(200).json({
-      message: "Files uploaded and saved successfully",
-      files: savedDocuments,
-    });
+    res.status(200).json({ message: "Files uploaded successfully", files: savedDocuments });
   } catch (error) {
-    console.error("Upload process error:", error);
-    res.status(500).json({ message: "Failed to upload files to Cloudinary" });
+    console.error("Upload error:", error);
+    res.status(500).json({ message: "Failed to upload files" });
   }
 });
 
 /**
  * @route   POST /api/upload/single
- * @desc    Upload a single image (e.g. profile picture)
+ * @desc    Upload a single image
  * @access  Private
  */
 router.post("/single", protectRoute, upload.single("image"), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
+    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const result = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: "profile_images",
           resource_type: "image",
-          type: "upload", // Make it public
+          type: "upload",
+          access_mode: "public",
         },
         (error, result) => {
           if (error) reject(error);
@@ -124,7 +112,7 @@ router.post("/single", protectRoute, upload.single("image"), async (req, res) =>
 
 /**
  * @route   GET /api/upload/my-documents
- * @desc    Get all documents belonging to the authenticated user
+ * @desc    Get all documents for user
  * @access  Private
  */
 router.get("/my-documents", protectRoute, async (req, res) => {
@@ -133,10 +121,8 @@ router.get("/my-documents", protectRoute, async (req, res) => {
       where: { userId: req.user.id },
       orderBy: { createdAt: "desc" },
     });
-
     res.status(200).json(documents);
   } catch (error) {
-    console.error("Fetch documents error:", error);
     res.status(500).json({ message: "Failed to fetch documents" });
   }
 });

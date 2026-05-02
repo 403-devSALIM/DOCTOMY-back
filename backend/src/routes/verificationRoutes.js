@@ -40,11 +40,14 @@ router.post(
       const uploadPromises = filteredFiles.map((file) => {
         const key = file.fieldname;
         return new Promise((resolve, reject) => {
+          const isPdf = file.originalname.toLowerCase().endsWith('.pdf');
           const uploadStream = cloudinary.uploader.upload_stream(
             {
               folder: `user_${req.user.id}/verification`,
-              resource_type: "auto",
-              type: "upload", // Make it public
+              resource_type: isPdf ? "raw" : "image",
+              type: "upload",
+              access_mode: "public", // Explicitly set access to public
+              angle: "auto"
             },
             (error, result) => {
               if (error) reject(error);
