@@ -92,7 +92,27 @@ router.post(
 
       const savedDocs = await Promise.all(
         uploadResults.map(async (doc) => {
-          // Delete any existing document of this type for this user first
+          // 1. Find existing documents of this type
+          const existingDocs = await prisma.document.findMany({
+            where: { userId: req.user.id, type: doc.type },
+          });
+
+          // 2. Delete the actual files from Cloudinary storage
+          for (const oldDoc of existingDocs) {
+            try {
+              if (oldDoc.publicId) {
+                // Cloudinary needs to know the resource_type if it's not 'image'
+                const isOldPdf = oldDoc.format === 'pdf' || oldDoc.url.endsWith('.pdf');
+                await cloudinary.uploader.destroy(oldDoc.publicId, { 
+                  resource_type: isOldPdf ? "raw" : "image" 
+                });
+              }
+            } catch (err) {
+              console.error("Cloudinary delete error:", err.message);
+            }
+          }
+
+          // 3. Delete the records from the database
           await prisma.document.deleteMany({
             where: {
               userId: req.user.id,
