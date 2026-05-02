@@ -64,6 +64,7 @@ router.get("/", adminRoute, async (req, res) => {
         validityPercentage: true,
         report: true,
         createdAt: true,
+        documents: true,
       },
       where: {
         role: "USER"
