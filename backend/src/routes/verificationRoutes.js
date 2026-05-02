@@ -40,26 +40,28 @@ router.post(
       const uploadPromises = filteredFiles.map((file) => {
         const key = file.fieldname;
         return new Promise((resolve, reject) => {
-          // Smarter PDF detection (check extension OR mimetype)
+          // Smarter PDF detection
           const isPdf = 
             file.originalname.toLowerCase().endsWith('.pdf') || 
             file.mimetype === 'application/pdf';
 
-          // FIXED: Use proper resource_type for PDFs
+          // Because we upload a memory buffer, Cloudinary doesn't know the file extension.
+          // We MUST extract the extension from the original name and pass it explicitly.
+          let fileExt = file.originalname.split('.').pop().toLowerCase();
+          if (fileExt === 'jpeg') fileExt = 'jpg';
+          
+          const format = isPdf ? 'pdf' : (fileExt || 'jpg');
+
           const cloudinaryOptions = {
             folder: `user_${req.user.id}/verification`,
+            resource_type: "auto", // Let Cloudinary handle the file natively
             type: "upload",
             access_mode: "public",
+            format: format // ✅ Force Cloudinary to save with this exact extension
           };
 
-          // For PDFs, use resource_type 'raw' but add format explicitly
-          // OR use resource_type 'auto' to let Cloudinary detect
-          if (isPdf) {
-            cloudinaryOptions.resource_type = "raw";
-            cloudinaryOptions.format = "pdf"; // ✅ Explicitly set PDF format
-          } else {
-            cloudinaryOptions.resource_type = "image";
-            cloudinaryOptions.angle = "auto"; // Auto-rotate images
+          if (!isPdf) {
+            cloudinaryOptions.angle = "auto"; // Auto-rotate only for images
           }
 
           const uploadStream = cloudinary.uploader.upload_stream(

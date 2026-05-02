@@ -35,17 +35,20 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
           file.originalname.toLowerCase().endsWith('.pdf') || 
           file.mimetype === 'application/pdf';
 
+        let fileExt = file.originalname.split('.').pop().toLowerCase();
+        if (fileExt === 'jpeg') fileExt = 'jpg';
+        
+        const format = isPdf ? 'pdf' : (fileExt || 'jpg');
+
         const cloudinaryOptions = {
           folder: `user_${req.user.id}/documents`,
+          resource_type: "auto",
           type: "upload",
           access_mode: "public",
+          format: format // ✅ Force Cloudinary to save with this exact extension
         };
 
-        if (isPdf) {
-          cloudinaryOptions.resource_type = "raw";
-          cloudinaryOptions.format = "pdf"; // ✅ Explicitly set PDF format
-        } else {
-          cloudinaryOptions.resource_type = "image";
+        if (!isPdf) {
           cloudinaryOptions.angle = "auto";
         }
 
