@@ -30,10 +30,15 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
 
     const uploadPromises = req.files.map((file) => {
       return new Promise((resolve, reject) => {
+        // Explicitly detect if it is a PDF
+        const isPdf = 
+          file.originalname.toLowerCase().endsWith('.pdf') || 
+          file.mimetype === 'application/pdf';
+
         const uploadStream = cloudinary.uploader.upload_stream(
           {
             folder: `user_${req.user.id}/documents`,
-            resource_type: "auto",
+            resource_type: isPdf ? "raw" : "image",
             type: "upload",
             access_mode: "public",
           },
