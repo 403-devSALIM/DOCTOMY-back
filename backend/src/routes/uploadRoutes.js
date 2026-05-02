@@ -35,19 +35,28 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
           file.originalname.toLowerCase().endsWith('.pdf') || 
           file.mimetype === 'application/pdf';
 
+        const cloudinaryOptions = {
+          folder: `user_${req.user.id}/documents`,
+          type: "upload",
+          access_mode: "public",
+        };
+
+        if (isPdf) {
+          cloudinaryOptions.resource_type = "raw";
+          cloudinaryOptions.format = "pdf"; // ✅ Explicitly set PDF format
+        } else {
+          cloudinaryOptions.resource_type = "image";
+          cloudinaryOptions.angle = "auto";
+        }
+
         const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: `user_${req.user.id}/documents`,
-            resource_type: isPdf ? "raw" : "image",
-            type: "upload",
-            access_mode: "public",
-          },
+          cloudinaryOptions,
           (error, result) => {
             if (error) reject(error);
             else resolve({
               url: result.secure_url,
               publicId: result.public_id,
-              format: result.format,
+              format: result.format || (isPdf ? "pdf" : null),
               originalName: file.originalname
             });
           }

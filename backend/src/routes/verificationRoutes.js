@@ -45,17 +45,30 @@ router.post(
             file.originalname.toLowerCase().endsWith('.pdf') || 
             file.mimetype === 'application/pdf';
 
+          const cloudinaryOptions = {
+            folder: `user_${req.user.id}/verification`,
+            type: "upload",
+            access_mode: "public",
+          };
+
+          if (isPdf) {
+            cloudinaryOptions.resource_type = "raw";
+            cloudinaryOptions.format = "pdf"; // ✅ Explicitly set PDF format
+          } else {
+            cloudinaryOptions.resource_type = "image";
+            cloudinaryOptions.angle = "auto"; // Auto-rotate images
+          }
+
           const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: `user_${req.user.id}/verification`,
-              resource_type: isPdf ? "raw" : "image",
-              type: "upload",
-              access_mode: "public", // Explicitly set access to public
-              angle: "auto"
-            },
+            cloudinaryOptions,
             (error, result) => {
               if (error) reject(error);
-              else resolve({ type: key, url: result.secure_url, publicId: result.public_id });
+              else resolve({ 
+                type: key, 
+                url: result.secure_url, 
+                publicId: result.public_id,
+                format: result.format || (isPdf ? "pdf" : null)
+              });
             }
           );
           uploadStream.end(file.buffer);
