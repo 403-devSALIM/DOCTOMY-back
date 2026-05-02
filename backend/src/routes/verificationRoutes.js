@@ -104,7 +104,7 @@ router.post(
             isNifValid: is_nif_valid !== undefined ? is_nif_valid : false,
             validityPercentage: validity_percentage !== undefined ? parseInt(validity_percentage) : 0,
             report: report || "",
-            status: is_valid ? "accepted" : "rejected",
+            status: is_valid ? "accepted" : "in_progress", // rejected replaced with in_progress
           },
         });
 
