@@ -38,6 +38,7 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
             // Organize files by user ID for security and better management
             folder: `user_${req.user.id}/documents`,
             resource_type: "auto",
+            type: "upload", // Make it public
           },
           (error, result) => {
             if (error) {
@@ -100,6 +101,7 @@ router.post("/single", protectRoute, upload.single("image"), async (req, res) =>
         {
           folder: "profile_images",
           resource_type: "image",
+          type: "upload", // Make it public
         },
         (error, result) => {
           if (error) reject(error);

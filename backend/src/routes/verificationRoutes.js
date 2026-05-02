@@ -77,6 +77,7 @@ router.post(
             {
               folder: `user_${req.user.id}/verification`,
               resource_type: "auto",
+              type: "upload", // Make it public
             },
             (error, result) => {
               if (error) reject(error);
