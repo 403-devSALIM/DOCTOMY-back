@@ -126,8 +126,8 @@ router.post(
 
       // Prepare form data for Luxand API
       const form = new FormData();
-      form.append("photo1", personImageFile.buffer, { filename: "person.jpg" });
-      form.append("photo2", identityCardFile.buffer, { filename: "card.jpg" });
+      form.append("face1", personImageFile.buffer, { filename: "person.jpg" });
+      form.append("face2", identityCardFile.buffer, { filename: "card.jpg" });
 
       // Use your Luxand API Key (Get one for free at luxand.cloud)
       const LUXAND_API_KEY = process.env.LUXAND_API_KEY || "YOUR_LUXAND_API_KEY";
@@ -139,16 +139,18 @@ router.post(
          });
       }
 
-      const response = await axios.post("https://api.luxand.cloud/photo/verify", form, {
+      const response = await axios.post("https://api.luxand.cloud/photo/similarity", form, {
         headers: {
           ...form.getHeaders(),
           "token": LUXAND_API_KEY
         }
       });
 
-      // Luxand returns status: "success" and result: "true"/"false"
-      const isMatch = response.data.status === "success" && response.data.result === "true";
-      const confidence = response.data.score ? (response.data.score * 100).toFixed(2) : "0";
+      // Luxand /photo/similarity returns a "similarity" score (0 to 1)
+      const similarity = response.data.similarity || 0;
+      const threshold = 0.7; // Luxand recommendation for matching
+      const isMatch = similarity > threshold;
+      const confidence = (similarity * 100).toFixed(2);
 
       res.status(200).json({
         message: "Identity verification completed",
