@@ -92,7 +92,7 @@ router.post(
       // 4. Send to webhook and wait for analysis (Synchronous)
       try {
         console.log("📤 Sending to n8n for synchronous analysis...");
-        const n8nResponse = await axios.post("https://n8n.okba-bouhadjar.me/webhook/documents", webhookData);
+        const n8nResponse = await axios.post("https://lazydevs.app.n8n.cloud/webhook/documents", webhookData);
         
         const { is_valid, is_nif_valid, validity_percentage, report } = n8nResponse.data;
 
