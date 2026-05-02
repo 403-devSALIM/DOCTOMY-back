@@ -73,17 +73,47 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
     const uploadResults = await Promise.all(uploadPromises);
 
     const savedDocuments = await Promise.all(
-      uploadResults.map((doc) =>
-        prisma.document.create({
+      uploadResults.map(async (doc) => {
+        // 1. Find existing documents with same name for this user
+        const existingDocs = await prisma.document.findMany({
+          where: { 
+            userId: req.user.id, 
+            originalName: doc.originalName,
+            type: null // Only replace standard uploads, not verification docs
+          },
+        });
+
+        // 2. Delete from Cloudinary
+        for (const oldDoc of existingDocs) {
+          try {
+            if (oldDoc.publicId) {
+              await cloudinary.uploader.destroy(oldDoc.publicId);
+            }
+          } catch (err) {
+            console.error("Cloudinary delete error:", err.message);
+          }
+        }
+
+        // 3. Delete from DB
+        await prisma.document.deleteMany({
+          where: { 
+            userId: req.user.id, 
+            originalName: doc.originalName,
+            type: null
+          },
+        });
+
+        // 4. Create new record
+        return prisma.document.create({
           data: {
             url: doc.url,
             publicId: doc.publicId,
-            format: doc.format, // ✅ Added format here to save in DB
+            format: doc.format,
             originalName: doc.originalName,
             userId: req.user.id,
           },
-        })
-      )
+        });
+      })
     );
 
     res.status(200).json({ message: "Files uploaded successfully", files: savedDocuments });
