@@ -89,18 +89,42 @@ router.post(
         submittedAt: new Date(),
       };
 
-      // 4. Send to webhook
+      // 4. Send to webhook and wait for analysis (Synchronous)
       try {
-        await axios.post("https://n8n.okba-bouhadjar.me/webhook/documents", webhookData);
-        console.log("✅ Data successfully sent to n8n webhook");
-      } catch (webhookError) {
-        console.error("❌ Webhook error:", webhookError.message);
-      }
+        console.log("📤 Sending to n8n for synchronous analysis...");
+        const n8nResponse = await axios.post("https://n8n.okba-bouhadjar.me/webhook/documents", webhookData);
+        
+        const { is_valid, is_nif_valid, validity_percentage, report } = n8nResponse.data;
 
-      res.status(200).json({
-        message: "Documents submitted successfully",
-        documents: savedDocs,
-      });
+        // 5. Update user with the analysis results immediately
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: {
+            isValid: is_valid !== undefined ? is_valid : false,
+            isNifValid: is_nif_valid !== undefined ? is_nif_valid : false,
+            validityPercentage: validity_percentage !== undefined ? parseInt(validity_percentage) : 0,
+            report: report || "",
+            status: is_valid ? "accepted" : "rejected",
+          },
+        });
+
+        console.log("✅ Identity verified synchronously via n8n");
+
+        res.status(200).json({
+          message: "Documents submitted and verified successfully",
+          is_valid,
+          report,
+          documents: savedDocs,
+        });
+
+      } catch (webhookError) {
+        console.error("❌ n8n Analysis error:", webhookError.message);
+        // If n8n fails, we still keep the documents but keep status as "in_progress"
+        res.status(200).json({
+          message: "Documents submitted, but analysis is still in progress.",
+          documents: savedDocs,
+        });
+      }
     } catch (error) {
       console.error("Verification submit error:", error);
       res.status(500).json({ message: "Failed to submit documents" });
@@ -203,38 +227,5 @@ router.post(
     }
   }
 );
-
-/**
- * @route   POST /api/verify/webhook-callback
- * @desc    Callback endpoint for n8n to update verification results
- * @access  Public (Should use a secret in production)
- */
-router.post("/webhook-callback", async (req, res) => {
-  try {
-    const { userId, is_valid, is_nif_valid, validity_percentage, report, status } = req.body;
-
-    if (!userId) {
-      return res.status(400).json({ message: "userId is required" });
-    }
-
-    // Update user with verification data from n8n
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        isValid: is_valid !== undefined ? is_valid : false,
-        isNifValid: is_nif_valid !== undefined ? is_nif_valid : false,
-        validityPercentage: validity_percentage !== undefined ? parseInt(validity_percentage) : 0,
-        report: report || "",
-        status: status || (is_valid ? "accepted" : "rejected"), // Auto-update status based on validity if status not provided
-      },
-    });
-
-    console.log(`✅ User ${userId} verification updated from n8n`);
-    res.status(200).json({ message: "User verification updated successfully", userId: updatedUser.id });
-  } catch (error) {
-    console.error("Webhook callback error:", error);
-    res.status(500).json({ message: "Failed to update verification data" });
-  }
-});
 
 export default router;
