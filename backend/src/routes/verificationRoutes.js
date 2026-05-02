@@ -53,12 +53,12 @@ router.post(
           const format = isPdf ? 'pdf' : (fileExt || 'jpg');
 
           const cloudinaryOptions = {
-            folder: `user_${req.user.id}/verification`,
-            resource_type: "auto", // Let Cloudinary handle the file natively
+            folder: "user_uploads", // Simplified folder for better access
+            resource_type: "auto", 
             type: "upload",
             access_mode: "public",
-            format: format, // ✅ Force Cloudinary to save with this exact extension
-            use_filename: true, // Help n8n and other tools recognize the file
+            format: format,
+            use_filename: true,
             unique_filename: true
           };
 

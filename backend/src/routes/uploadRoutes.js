@@ -41,11 +41,11 @@ router.post("/documents", protectRoute, upload.array("documents", 5), async (req
         const format = isPdf ? 'pdf' : (fileExt || 'jpg');
 
         const cloudinaryOptions = {
-          folder: `user_${req.user.id}/documents`,
+          folder: "user_uploads",
           resource_type: "auto",
           type: "upload",
           access_mode: "public",
-          format: format, // ✅ Force Cloudinary to save with this exact extension
+          format: format,
           use_filename: true,
           unique_filename: true
         };
