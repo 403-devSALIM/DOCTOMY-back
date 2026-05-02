@@ -36,6 +36,7 @@ model Document {
   publicId     String
   format       String?
   originalName String?
+  type         String?  // e.g., PERSON_IMAGE, ID_CARD, NIF, etc.
   userId       String
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())

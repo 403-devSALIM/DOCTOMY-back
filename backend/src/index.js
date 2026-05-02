@@ -6,6 +6,7 @@ import prisma from "./lib/prisma.js"
 
 import userRoutes from "./routes/userRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
+import verificationRoutes from "./routes/verificationRoutes.js"
 import cors from "cors" ; 
 import job from "./lib/cron.js";
 
@@ -22,6 +23,7 @@ app.use(cors());
 app.use("/api/auth" , authRouter)
 app.use("/api/users", userRoutes)
 app.use("/api/upload", uploadRoutes)
+app.use("/api/verify", verificationRoutes)
 
 // Error handling middleware
 app.use((err, req, res, next) => {
