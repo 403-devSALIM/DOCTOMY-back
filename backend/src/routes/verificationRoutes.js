@@ -1,46 +1,13 @@
-import path from "path";
-import * as tf from "@tensorflow/tfjs";
 import express from "express";
 import multer from "multer";
 import cloudinary from "../lib/cloudinary.js";
 import prisma from "../lib/prisma.js";
 import axios from "axios";
+import FormData from "form-data";
 import protectRoute from "../middleware/autmiddlware.js";
-import * as faceapi from "@vladmandic/face-api";
-import canvas from "canvas";
-
-const { Canvas, Image, ImageData } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
-
-// Load models on startup
-const modelsPath = path.join(process.cwd(), "src", "models");
-let modelsLoaded = false;
-
-const loadModels = async () => {
-  try {
-    await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
-    await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath);
-    await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath);
-    modelsLoaded = true;
-    console.log("✅ FaceAPI models loaded successfully");
-  } catch (error) {
-    console.error("❌ Failed to load FaceAPI models:", error.message);
-  }
-};
-loadModels();
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
-
-// Helper to get face descriptors from image buffer
-async function getDescriptor(buffer) {
-  const img = await canvas.loadImage(buffer);
-  const detections = await faceapi
-    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-  return detections ? detections.descriptor : null;
-}
 
 /**
  * @route   POST /api/verify/submit
@@ -123,7 +90,6 @@ router.post(
         console.log("✅ Data successfully sent to n8n webhook");
       } catch (webhookError) {
         console.error("❌ Webhook error:", webhookError.message);
-        // We continue even if webhook fails, but we might want to log it
       }
 
       res.status(200).json({
@@ -139,7 +105,7 @@ router.post(
 
 /**
  * @route   POST /api/verify/compare
- * @desc    Compare person image and ID card image for identity verification
+ * @desc    Compare person image and ID card image using Luxand.cloud API
  * @access  Private
  */
 router.post(
@@ -148,10 +114,6 @@ router.post(
   upload.any(),
   async (req, res) => {
     try {
-      if (!modelsLoaded) {
-        return res.status(503).json({ message: "Face verification models are still loading. Please try again in a moment." });
-      }
-
       const files = req.files || [];
       const personImageFile = files.find(f => f.fieldname === "personImage");
       const identityCardFile = files.find(f => f.fieldname === "identityCard");
@@ -160,39 +122,48 @@ router.post(
         return res.status(400).json({ message: "Both personImage and identityCard are required" });
       }
 
-      console.log("Performing real face comparison...");
+      console.log("Performing face comparison via Luxand API...");
 
-      // Get descriptors for both images
-      const descriptor1 = await getDescriptor(personImageFile.buffer);
-      const descriptor2 = await getDescriptor(identityCardFile.buffer);
+      // Prepare form data for Luxand API
+      const form = new FormData();
+      form.append("photo1", personImageFile.buffer, { filename: "person.jpg" });
+      form.append("photo2", identityCardFile.buffer, { filename: "card.jpg" });
 
-      if (!descriptor1 || !descriptor2) {
-        return res.status(400).json({ 
-          message: "Could not detect a clear face in one or both images.",
-          personImageFound: !!descriptor1,
-          identityCardFound: !!descriptor2
-        });
+      // Use your Luxand API Key (Get one for free at luxand.cloud)
+      const LUXAND_API_KEY = process.env.LUXAND_API_KEY || "YOUR_LUXAND_API_KEY";
+
+      if (!LUXAND_API_KEY || LUXAND_API_KEY === "YOUR_LUXAND_API_KEY") {
+         return res.status(500).json({ 
+           message: "Identity verification API not configured.",
+           note: "Please add LUXAND_API_KEY to your .env file in Render." 
+         });
       }
 
-      // Calculate Euclidean distance between descriptors
-      // 0 = identical, 1 = completely different. Threshold is usually 0.6
-      const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
-      const threshold = 0.6;
-      const isMatch = distance < threshold;
-      
-      // Calculate confidence (inverse of distance, capped at 100%)
-      const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
+      const response = await axios.post("https://api.luxand.cloud/photo/verify", form, {
+        headers: {
+          ...form.getHeaders(),
+          "token": LUXAND_API_KEY
+        }
+      });
+
+      // Luxand returns status: "success" and result: "true"/"false"
+      const isMatch = response.data.status === "success" && response.data.result === "true";
+      const confidence = response.data.score ? (response.data.score * 100).toFixed(2) : "0";
 
       res.status(200).json({
         message: "Identity verification completed",
         match: isMatch,
-        confidence: confidence.toFixed(2) + "%",
-        distance: distance.toFixed(4),
-        note: isMatch ? "Faces match correctly." : "Faces do not appear to match."
+        confidence: confidence + "%",
+        provider: "Luxand.cloud",
+        raw: response.data
       });
+
     } catch (error) {
-      console.error("Identity verification error:", error);
-      res.status(500).json({ message: "Failed to verify identity" });
+      console.error("Identity verification error:", error.response?.data || error.message);
+      res.status(500).json({ 
+        message: "Failed to verify identity via external service",
+        error: error.response?.data?.message || error.message
+      });
     }
   }
 );
