@@ -1,12 +1,45 @@
+import path from "path";
 import express from "express";
 import multer from "multer";
 import cloudinary from "../lib/cloudinary.js";
 import prisma from "../lib/prisma.js";
 import axios from "axios";
 import protectRoute from "../middleware/autmiddlware.js";
+import * as faceapi from "@vladmandic/face-api";
+import canvas from "canvas";
+
+const { Canvas, Image, ImageData } = canvas;
+faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
+
+// Load models on startup
+const modelsPath = path.join(process.cwd(), "src", "models");
+let modelsLoaded = false;
+
+const loadModels = async () => {
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromDisk(modelsPath);
+    await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath);
+    await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath);
+    modelsLoaded = true;
+    console.log("✅ FaceAPI models loaded successfully");
+  } catch (error) {
+    console.error("❌ Failed to load FaceAPI models:", error.message);
+  }
+};
+loadModels();
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
+
+// Helper to get face descriptors from image buffer
+async function getDescriptor(buffer) {
+  const img = await canvas.loadImage(buffer);
+  const detections = await faceapi
+    .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+    .withFaceLandmarks()
+    .withFaceDescriptor();
+  return detections ? detections.descriptor : null;
+}
 
 /**
  * @route   POST /api/verify/submit
@@ -113,33 +146,47 @@ router.post(
   upload.any(),
   async (req, res) => {
     try {
-      const files = req.files || [];
-      const personImage = files.find(f => f.fieldname === "personImage");
-      const identityCard = files.find(f => f.fieldname === "identityCard");
+      if (!modelsLoaded) {
+        return res.status(503).json({ message: "Face verification models are still loading. Please try again in a moment." });
+      }
 
-      if (!personImage || !identityCard) {
+      const files = req.files || [];
+      const personImageFile = files.find(f => f.fieldname === "personImage");
+      const identityCardFile = files.find(f => f.fieldname === "identityCard");
+
+      if (!personImageFile || !identityCardFile) {
         return res.status(400).json({ message: "Both personImage and identityCard are required" });
       }
 
-      // NOTE: Real face comparison requires a specialized library (like face-api.js) 
-      // or an external AI service (AWS Rekognition, Azure Face API, etc.)
+      console.log("Performing real face comparison...");
+
+      // Get descriptors for both images
+      const descriptor1 = await getDescriptor(personImageFile.buffer);
+      const descriptor2 = await getDescriptor(identityCardFile.buffer);
+
+      if (!descriptor1 || !descriptor2) {
+        return res.status(400).json({ 
+          message: "Could not detect a clear face in one or both images.",
+          personImageFound: !!descriptor1,
+          identityCardFound: !!descriptor2
+        });
+      }
+
+      // Calculate Euclidean distance between descriptors
+      // 0 = identical, 1 = completely different. Threshold is usually 0.6
+      const distance = faceapi.euclideanDistance(descriptor1, descriptor2);
+      const threshold = 0.6;
+      const isMatch = distance < threshold;
       
-      // For this implementation, I will provide the structural logic.
-      // If you have a specific AI service, you would call it here.
-      
-      // MOCK COMPARISON LOGIC (Replace with real AI call)
-      console.log("Performing face comparison...");
-      
-      // Placeholder for AI comparison result
-      // In a real scenario, you would send the buffers to an AI service
-      const matchScore = Math.random() * 100; // Mock score
-      const isMatch = matchScore > 70; // Mock threshold
+      // Calculate confidence (inverse of distance, capped at 100%)
+      const confidence = Math.max(0, Math.min(100, (1 - distance) * 100));
 
       res.status(200).json({
         message: "Identity verification completed",
         match: isMatch,
-        confidence: matchScore.toFixed(2) + "%",
-        note: "This is a mock result. For real production, integrate an AI service like AWS Rekognition or face-api.js."
+        confidence: confidence.toFixed(2) + "%",
+        distance: distance.toFixed(4),
+        note: isMatch ? "Faces match correctly." : "Faces do not appear to match."
       });
     } catch (error) {
       console.error("Identity verification error:", error);
