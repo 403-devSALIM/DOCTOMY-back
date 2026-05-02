@@ -40,7 +40,11 @@ router.post(
       const uploadPromises = filteredFiles.map((file) => {
         const key = file.fieldname;
         return new Promise((resolve, reject) => {
-          const isPdf = file.originalname.toLowerCase().endsWith('.pdf');
+          // Smarter PDF detection (check extension OR mimetype)
+          const isPdf = 
+            file.originalname.toLowerCase().endsWith('.pdf') || 
+            file.mimetype === 'application/pdf';
+
           const uploadStream = cloudinary.uploader.upload_stream(
             {
               folder: `user_${req.user.id}/verification`,
