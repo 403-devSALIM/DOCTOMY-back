@@ -74,7 +74,8 @@ router.post(
                 type: key, 
                 url: result.secure_url, 
                 publicId: result.public_id,
-                format: result.format || format // Ensure format is passed back
+                format: result.format || format,
+                originalName: file.originalname // ✅ Capture originalName
               });
             }
           );
@@ -101,7 +102,6 @@ router.post(
           for (const oldDoc of existingDocs) {
             try {
               if (oldDoc.publicId) {
-                // Cloudinary needs to know the resource_type if it's not 'image'
                 const isOldPdf = oldDoc.format === 'pdf' || oldDoc.url.endsWith('.pdf');
                 await cloudinary.uploader.destroy(oldDoc.publicId, { 
                   resource_type: isOldPdf ? "raw" : "image" 
@@ -127,6 +127,7 @@ router.post(
               url: doc.url,
               publicId: doc.publicId,
               format: doc.format,
+              originalName: doc.originalName, // ✅ Save originalName to DB
               userId: req.user.id,
             },
           });
